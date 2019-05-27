@@ -28,6 +28,7 @@ const (
 	CustomType panelType = iota
 	DashlistType
 	GraphType
+	HeatMapType
 	TableType
 	TextType
 	PluginlistType
@@ -44,6 +45,7 @@ type (
 		// Should be initialized only one type of panels.
 		// OfType field defines which of types below will be used.
 		*GraphPanel
+		*HeatmapPanel
 		*TablePanel
 		*TextPanel
 		*SinglestatPanel
@@ -163,6 +165,58 @@ type (
 		Xaxis           Axis             `json:"xaxis"` // was added in Grafana 4.x?
 		Yaxes           []Axis           `json:"yaxes"` // was added in Grafana 4.x?
 	}
+
+	HeatmapPanel struct {
+		Cards struct {
+			CardPadding interface{} `json:"cardPadding"`
+			CardRound   interface{} `json:"cardRound"`
+		} `json:"cards"`
+		Color struct {
+			CardColor   string  `json:"cardColor"`
+			ColorScale  string  `json:"colorScale"`
+			ColorScheme string  `json:"colorScheme"`
+			Exponent    float64 `json:"exponent"`
+			Mode        string  `json:"mode"`
+		} `json:"color"`
+		DataFormat string `json:"dataFormat"`
+
+		Heatmap struct {
+		} `json:"heatmap"`
+		HideZeroBuckets bool `json:"hideZeroBuckets"`
+		HighlightCards  bool `json:"highlightCards"`
+		//ID              int  `json:"id"`
+		Legend          struct {
+			Show bool `json:"show"`
+		} `json:"legend"`
+		ReverseYBuckets bool        `json:"reverseYBuckets"`
+		TimeFrom        interface{} `json:"timeFrom"`
+		TimeShift       interface{} `json:"timeShift"`
+		//Title           string      `json:"title"`
+		Tooltip         struct {
+			Show          bool `json:"show"`
+			ShowHistogram bool `json:"showHistogram"`
+		} `json:"tooltip"`
+		//Type  string `json:"type"`
+		XAxis struct {
+			Show bool `json:"show"`
+		} `json:"xAxis"`
+		XBucketNumber interface{} `json:"xBucketNumber"`
+		XBucketSize   interface{} `json:"xBucketSize"`
+		YAxis         struct {
+			Decimals    interface{} `json:"decimals"`
+			Format      string      `json:"format"`
+			LogBase     int         `json:"logBase"`
+			Max         interface{} `json:"max"`
+			Min         interface{} `json:"min"`
+			Show        bool        `json:"show"`
+			SplitFactor interface{} `json:"splitFactor"`
+		} `json:"yAxis"`
+		YBucketBound  string      `json:"yBucketBound"`
+		YBucketNumber interface{} `json:"yBucketNumber"`
+		YBucketSize   interface{} `json:"yBucketSize"`
+		Targets       []Target    `json:"targets,omitempty"`
+	}
+
 	Threshold struct {
 		// the alert threshold value, we do not omitempty, since 0 is a valid
 		// threshold
@@ -437,6 +491,22 @@ func NewGraph(title string) *Panel {
 		}}
 }
 
+func NewHeatmap(title string) *Panel{
+	if title == "" {
+		title = "Panel Title"
+	}
+	render := "flot"
+	return &Panel{
+		commonPanel: commonPanel{
+			OfType:   HeatMapType,
+			Title:    title,
+			Type:     "heatmap",
+			Renderer: &render,
+			Span:     12,
+			IsNew:    true},
+		HeatmapPanel: &HeatmapPanel{}}
+}
+
 // NewTable initializes panel with a table panel.
 func NewTable(title string) *Panel {
 	if title == "" {
@@ -537,6 +607,8 @@ func (p *Panel) ResetTargets() {
 	switch p.OfType {
 	case GraphType:
 		p.GraphPanel.Targets = nil
+	case HeatMapType:
+		p.HeatmapPanel.Targets = nil
 	case SinglestatType:
 		p.SinglestatPanel.Targets = nil
 	case TableType:
@@ -552,6 +624,8 @@ func (p *Panel) AddTarget(t *Target) {
 	switch p.OfType {
 	case GraphType:
 		p.GraphPanel.Targets = append(p.GraphPanel.Targets, *t)
+	case HeatMapType:
+		p.HeatmapPanel.Targets = append(p.HeatmapPanel.Targets, *t)
 	case SinglestatType:
 		p.SinglestatPanel.Targets = append(p.SinglestatPanel.Targets, *t)
 	case TableType:
@@ -575,6 +649,8 @@ func (p *Panel) SetTarget(t *Target) {
 	switch p.OfType {
 	case GraphType:
 		setTarget(t, &p.GraphPanel.Targets)
+	case HeatMapType:
+		setTarget(t, &p.HeatmapPanel.Targets)
 	case SinglestatType:
 		setTarget(t, &p.SinglestatPanel.Targets)
 	case TableType:
@@ -602,6 +678,8 @@ func (p *Panel) RepeatDatasourcesForEachTarget(dsNames ...string) {
 	switch p.OfType {
 	case GraphType:
 		repeatDS(dsNames, &p.GraphPanel.Targets)
+	case HeatMapType:
+		repeatDS(dsNames, &p.HeatmapPanel.Targets)
 	case SinglestatType:
 		repeatDS(dsNames, &p.SinglestatPanel.Targets)
 	case TableType:
@@ -632,6 +710,8 @@ func (p *Panel) RepeatTargetsForDatasources(dsNames ...string) {
 	switch p.OfType {
 	case GraphType:
 		repeatTarget(dsNames, &p.GraphPanel.Targets)
+	case HeatMapType:
+		repeatTarget(dsNames, &p.HeatmapPanel.Targets)
 	case SinglestatType:
 		repeatTarget(dsNames, &p.SinglestatPanel.Targets)
 	case TableType:
@@ -645,6 +725,8 @@ func (p *Panel) GetTargets() *[]Target {
 	switch p.OfType {
 	case GraphType:
 		return &p.GraphPanel.Targets
+	case HeatMapType:
+		return &p.HeatmapPanel.Targets
 	case SinglestatType:
 		return &p.SinglestatPanel.Targets
 	case TableType:
@@ -669,6 +751,12 @@ func (p *Panel) UnmarshalJSON(b []byte) (err error) {
 			p.OfType = GraphType
 			if err = json.Unmarshal(b, &graph); err == nil {
 				p.GraphPanel = &graph
+			}
+		case "heatmap":
+			var heatmap HeatmapPanel
+			p.OfType = HeatMapType
+			if err = json.Unmarshal(b, &heatmap); err == nil{
+				p.HeatmapPanel = &heatmap
 			}
 		case "table":
 			var table TablePanel
@@ -713,6 +801,12 @@ func (p *Panel) MarshalJSON() ([]byte, error) {
 			GraphPanel
 		}{p.commonPanel, *p.GraphPanel}
 		return json.Marshal(outGraph)
+	case HeatMapType:
+		var outHeatmap = struct {
+			commonPanel
+			HeatmapPanel
+		}{p.commonPanel, *p.HeatmapPanel}
+		return json.Marshal(outHeatmap)
 	case TableType:
 		var outTable = struct {
 			commonPanel
